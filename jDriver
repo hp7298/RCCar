@@ -1,0 +1,11 @@
+#!/bin/bash
+
+sleep 3
+
+/home/pi/scripts/jcdriver
+
+
+
+
+
+
