@@ -1,0 +1,16 @@
+[Unit]
+Description=Initialize Joycon driver
+After=getty@tty2.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/pi/scripts/jDriver
+StandardInput=tty
+TTYPath=/dev/tty2
+TTYReset=yes
+TTYVHangup=yes
+Restart=Always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

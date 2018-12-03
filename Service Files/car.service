@@ -1,0 +1,11 @@
+[Unit]
+Description=runs the car program
+After=multi-user.target
+
+[Service]
+Type=idle
+WorkingDirectory = /home/pi
+ExecStart=/home/pi/car
+
+[Install]
+WantedBy=multi-user.target
