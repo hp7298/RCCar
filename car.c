@@ -37,10 +37,9 @@ FILE* openLog(char* name) {
 	if (log == NULL) {
 		char buffer[30];
 		getTime(buffer);
-		fprintf(stderr, "%s : %s : sev=%s : %s\n", buffer, name, "Warning", "car.log was unable to be opened. Restarting.");
+		fprintf(stderr, "%s : %s : sev=%s : %s\n", buffer, name, "Warning", "car.log was unable to be opened.");
 		perror("");
 		fflush(stderr);
-		exit(0);
 	}
 	return log;
 }
@@ -57,6 +56,7 @@ FILE* openConfig(FILE* log, char* name) {
 	FILE* config = fopen("/home/pi/car.cfg", "r");
 	if (config == NULL) {
 		writeLog(log, name, "Critical", "car.cfg was unable to be read. Rebooting");
+		system("sudo reboot");
 	}
 	
 	FILE* configLog = fopen("config.log", "a");
@@ -93,7 +93,7 @@ GPIO_Handle initializeGPIO(FILE* log, char* name) {
 	// Go to function errorMessage with error code 1
 	if(gpio == NULL) {
 		writeLog(log, name, "Critical", "GPIO was unable to be initialized. Rebooting.");
-		exit(0);
+		system("sudo reboot");
 	}
 	writeLog(log, name, "Debug", "GPIO pins were initialized.");
 	return gpio;	
@@ -111,27 +111,6 @@ void outputOff(GPIO_Handle gpio, int pinNumber)
 {
 	// Turns off the pinNumber specified
 	gpiolib_write_reg(gpio, GPCLR(0), 1 << pinNumber);
-}
-
-int openJoystick(GPIO_Handle gpio, FILE* log, char* name, int buzzer, int watchdog) {
-	outputOn(gpio, buzzer);
-	clock_t start;
-	start = time(NULL);
-	int fd = open ("/dev/input/js1", O_RDONLY | O_NONBLOCK);
-	while (fd == -1) {
-		if (time(NULL) - start >= 1) {
-			ioctl(watchdog, WDIOC_KEEPALIVE, 0);
-			start = time(NULL);
-		}
-		fd = open ("/dev/input/js1", O_RDONLY | O_NONBLOCK);
-	}
-	
-	outputOff(gpio, buzzer);
-	
-	writeLog(log, name, "Debug", "Joystick has been connected.");
-	
-	return fd;
-	
 }
 
 void offAll(GPIO_Handle gpio, int *pins, int size) {
@@ -155,6 +134,52 @@ void initializeAllPins(GPIO_Handle gpio, int* pins, int size) {
 		++i;
 	}	
 }
+
+void reboot(GPIO_Handle gpio, FILE* log, char* name, char* error, char* detail, int buzzer, int* pins) {
+	writeLog(log, name, error, detail);
+	outputOn(gpio, buzzer);
+	usleep(500000);
+	outputOff(gpio, buzzer);
+	usleep(500000);
+	outputOn(gpio, buzzer);
+	usleep(500000);
+	outputOff(gpio, buzzer);
+	usleep(500000);
+	outputOn(gpio, buzzer);
+	usleep(500000);
+	outputOff(gpio, buzzer);
+	offAll(gpio, pins, 5);
+	exit(0);
+}
+
+int openJoystick(GPIO_Handle gpio, FILE* log, char* name, int buzzer, int watchdog) {
+	outputOn(gpio, buzzer);
+	clock_t start;
+	start = time(NULL);
+	int fd = open ("/dev/input/js1", O_RDONLY | O_NONBLOCK);
+	while (fd == -1) {
+		if (time(NULL) - start >= 1) {
+			ioctl(watchdog, WDIOC_KEEPALIVE, 0);
+			start = time(NULL);
+		}
+		fd = open ("/dev/input/js1", O_RDONLY | O_NONBLOCK);
+	}
+	
+	outputOff(gpio, buzzer);
+	
+	writeLog(log, name, "Debug", "Joystick has been connected.");
+	
+	return fd;
+	
+}
+
+void wheelControl(GPIO_Handle gpio, int counter, float PWM, int pin) {
+	if (counter <= PWM)
+		outputOn(gpio, pin);
+	else 
+		outputOff(gpio, pin);
+}
+
 
 int startWatchDog(FILE* log, char* name, int timer) {
 	int dog = open("/dev/watchdog", O_WRONLY);
@@ -189,34 +214,6 @@ void stopWatchDog(FILE* log, char* name, int watchdog) {
 	close(watchdog);
 }
 
-
-////
-
-
-void reboot(GPIO_Handle gpio, FILE* log, char* name, char* error, char* detail, int buzzer, int* pins) {
-	writeLog(log, name, error, detail);
-	outputOn(gpio, buzzer);
-	usleep(500000);
-	outputOff(gpio, buzzer);
-	usleep(500000);
-	outputOn(gpio, buzzer);
-	usleep(500000);
-	outputOff(gpio, buzzer);
-	usleep(500000);
-	outputOn(gpio, buzzer);
-	usleep(500000);
-	outputOff(gpio, buzzer);
-	offAll(gpio, pins, 5);
-	exit(0);
-}
-
-void wheelControl(GPIO_Handle gpio, int counter, float PWM, int pin) {
-	if (counter <= PWM)
-		outputOn(gpio, pin);
-	else 
-		outputOff(gpio, pin);
-}
-
 void PID(FILE* log, char* name) {
 	char buffer[30];
 	getTime(buffer);
@@ -248,7 +245,6 @@ int main(const int argc, const char* const argv[]) {
 	
 	FILE* log = openLog(programName);
 	PID(log, programName);
-	// PRINT PID HERE
 	
 	GPIO_Handle gpio = initializeGPIO(log, programName);
 
